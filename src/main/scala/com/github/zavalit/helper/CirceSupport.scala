@@ -27,11 +27,6 @@ trait BaseCirceSupport {
   def mediaTypes: Seq[MediaType.WithFixedCharset] =
     List(`application/json`)
 
-  /**
-   * `Json` => HTTP entity
-   *
-   * @return marshaller for JSON value
-   */
   implicit final def jsonMarshaller(implicit printer: Printer = Printer.noSpaces): ToEntityMarshaller[Json] =
     Marshaller.oneOf(mediaTypes: _*) { mediaType =>
       Marshaller.withFixedContentType(ContentType(mediaType)) { json =>
@@ -41,20 +36,9 @@ trait BaseCirceSupport {
       }
     }
 
-  /**
-   * `A` => HTTP entity
-   *
-   * @tparam A type to encode
-   * @return marshaller for any `A` value
-   */
   implicit final def marshaller[A: Encoder](implicit printer: Printer = Printer.noSpaces): ToEntityMarshaller[A] =
     jsonMarshaller(printer).compose(Encoder[A].apply)
 
-  /**
-   * HTTP entity => `Json`
-   *
-   * @return unmarshaller for `Json`
-   */
   implicit final val jsonUnmarshaller: FromEntityUnmarshaller[Json] =
     Unmarshaller.byteStringUnmarshaller
       .forContentTypes(unmarshallerContentTypes: _*)
@@ -63,12 +47,6 @@ trait BaseCirceSupport {
         case data => jawn.parseByteBuffer(data.asByteBuffer).fold(throw _, identity)
       }
 
-  /**
-   * HTTP entity => `A`
-   *
-   * @tparam A type to decode
-   * @return unmarshaller for `A`
-   */
   implicit def unmarshaller[A: Decoder]: FromEntityUnmarshaller[A] = {
     def decode(json: Json) =
       Decoder[A]

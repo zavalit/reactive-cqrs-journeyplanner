@@ -65,3 +65,9 @@ for every new `POST /tracklines` we will get new `ref` and a new stream of sched
 
 
 
+Public Transport Arriving Data gets generated randomly and then send to a fanout, broadcasting this stream to an Actor and log it to a STDOUT
+
+```
+ in ~> bcast ~> trackingSink
+       bcast ~> loggingSink
+```

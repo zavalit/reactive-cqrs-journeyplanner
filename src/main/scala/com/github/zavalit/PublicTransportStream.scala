@@ -24,9 +24,8 @@ object PublicTransportStream extends LazyLogging {
 
       val loggingSink = Sink.foreach { line: PublicTransportStop.Command => logger.info(line.toString) }
 
-      in ~>
-        bcast ~> trackingSink
-      bcast ~> loggingSink
+      in ~> bcast ~> trackingSink
+            bcast ~> loggingSink
 
       ClosedShape
     })

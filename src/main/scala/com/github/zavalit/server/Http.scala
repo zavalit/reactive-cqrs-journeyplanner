@@ -9,10 +9,9 @@ import scala.util.{ Failure, Success }
 import akka.actor.{ CoordinatedShutdown, Scheduler, ActorSystem => UntapedSystem }
 import akka.stream.Materializer
 import com.github.zavalit.PublicTransportStop
-import com.github.zavalit.PublicTransportStop.PublicTransportStopReply
 import com.typesafe.scalalogging.LazyLogging
-import akka.http.scaladsl.model.StatusCodes.{ BadRequest, Conflict, Created, NoContent, OK, Unauthorized }
-import akka.http.scaladsl.server.{ Directives, Route }
+import akka.http.scaladsl.model.StatusCodes.{ BadRequest }
+import akka.http.scaladsl.server.{ Directives }
 import com.github.zavalit.Domain.Coordinates
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.util.Timeout
@@ -25,17 +24,19 @@ object Http extends LazyLogging {
 
   final object BindFailure extends Reason
 
-  def apply(publicTransportStop: ActorRef[PublicTransportStop.Command])(implicit untypedSystem: UntapedSystem, mat: Materializer): Unit = {
+  final case class Config(host: String, port: Int, timeout: FiniteDuration)
+
+  def apply(config: Config, publicTransportStop: ActorRef[PublicTransportStop.Command])(implicit untypedSystem: UntapedSystem, mat: Materializer): Unit = {
     import untypedSystem.dispatcher
 
-    val (address, port) = ("0.0.0.0", 8081)
+    val (host, port) = (config.host, config.port)
     val shutdown = CoordinatedShutdown(untypedSystem)
 
     AkkaHttp()
-      .bindAndHandle(route(publicTransportStop), address, port)
+      .bindAndHandle(route(config, publicTransportStop), host, port)
       .onComplete {
         case Failure(cause) =>
-          logger.error(s"Shutting down, because cannot bind to $address:$port!", cause)
+          logger.error(s"Shutting down, because cannot bind to $host:$port!", cause)
           CoordinatedShutdown(untypedSystem).run(BindFailure)
 
         case Success(binding) =>
@@ -50,10 +51,10 @@ object Http extends LazyLogging {
 
   }
 
-  def route(publicTransportStop: ActorRef[PublicTransportStop.Command])(implicit untypedSystem: UntapedSystem) = {
+  def route(config: Config, publicTransportStop: ActorRef[PublicTransportStop.Command])(implicit untypedSystem: UntapedSystem) = {
     import Directives._
     implicit val scheduler: Scheduler = untypedSystem.scheduler
-    implicit val timeout: Timeout = 5 seconds
+    implicit val timeout: Timeout = config.timeout
 
     import com.github.zavalit.helper.CirceSupport._
     import io.circe.generic.auto._

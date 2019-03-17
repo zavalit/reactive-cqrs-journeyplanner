@@ -6,7 +6,7 @@ import akka.actor.typed.{ ActorRef, ActorSystem, Behavior, Terminated }
 import akka.actor.{ Cancellable, CoordinatedShutdown, Scheduler, ActorSystem => UntypedSystem }
 import akka.stream.Materializer
 import akka.stream.typed.scaladsl.ActorMaterializer
-import com.github.zavalit.server.Websocket
+import com.github.zavalit.server.{ Websocket, Http }
 import com.typesafe.scalalogging.LazyLogging
 import com.github.zavalit.{ PublicTransportStream => PTStream, PublicTransportStreamFixture => Fixture }
 import pureconfig.loadConfigOrThrow
@@ -20,11 +20,11 @@ object Main extends LazyLogging {
 
   final object TopLevelActorTerminated extends Reason
 
-  final case class Config(ws: Websocket.Config)
+  final case class Config(ws: Websocket.Config, http: Http.Config)
 
   def main(args: Array[String]): Unit = {
-    val config = loadConfigOrThrow[Config]("journeyplanner")
 
+    val config = loadConfigOrThrow[Config]("journeyplanner")
     ActorSystem(Main(config), "journeyplanner")
 
   }
@@ -41,14 +41,17 @@ object Main extends LazyLogging {
 
       context.watch(publicTransportStopActor)
 
+      // generate line's arrivement stream
       PTStream.graph[Cancellable](
         Fixture.generateRandomTrackingSource,
         PTStream.arraivingLineTrackingSink(publicTransportStopActor))
         .run()
 
-      server.Http(publicTransportStopActor)
-      server.Websocket(config.ws)
+      // start server
+      Http(config.http, publicTransportStopActor)
+      Websocket(config.ws)
 
+      // listen for crash
       Behaviors.receiveSignal {
         case (_, Terminated(actor)) =>
           logger.error(s"$actor was terminated! Shutting down the system")
